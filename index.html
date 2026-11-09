@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spelling Bee Practice — Grades 3–4</title>
+<style>
+:root{--bg:#fff8ec;--ink:#2b2340;--muted:#756d8a;--hive:#ffb627;--hive-d:#e09400;--ok:#1f9d5c;--bad:#e23c64;--line:#efe4cf;--sky:#3a86ff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-rounded,"SF Pro Rounded","Segoe UI",Nunito,system-ui,sans-serif}
+.wrap{max-width:520px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:30px;margin:4px 0 2px}
+.sub{color:var(--muted);font-weight:700;margin:0 0 16px}
+.card{background:#fff;border:2px solid var(--line);border-radius:22px;padding:20px 18px;box-shadow:0 5px 0 rgba(43,35,64,.07)}
+.big{font-size:44px;font-weight:800;line-height:1}
+.bar{height:16px;background:#f2e8d6;border-radius:99px;overflow:hidden;margin:12px 0}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#2bb673,#7ad7a2);border-radius:99px;transition:width .3s}
+.counts{display:flex;gap:8px;font-weight:800;font-size:14px;flex-wrap:wrap}
+.counts span{background:#f7f1e6;border-radius:99px;padding:6px 10px}
+.btn{display:block;width:100%;border:none;border-radius:18px;padding:16px;font:inherit;font-size:20px;font-weight:800;cursor:pointer;color:#fff;background:var(--ok);box-shadow:0 5px 0 #157545;margin-top:16px}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 #157545}
+.btn.sec{background:#fff;color:var(--ink);border:2px solid var(--line);box-shadow:0 3px 0 var(--line);font-size:16px;padding:12px}
+.row{display:flex;gap:10px}.row .btn{flex:1}
+.note{color:var(--muted);font-size:13px;font-weight:700;line-height:1.45;margin-top:12px}
+details{margin-top:16px}summary{font-weight:800;cursor:pointer}
+.wl{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.wl span{background:#f7f1e6;border-radius:8px;padding:3px 8px;font-weight:700;font-size:14px}
+.wl.bad span{background:#ffe6ec}.wl.good span{background:#e3f6eb}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.x{border:2px solid var(--line);background:#fff;border-radius:12px;width:42px;height:42px;font-size:18px;cursor:pointer;color:var(--ink)}
+.top .bar{flex:1;margin:0}
+.cnt{font-weight:800;min-width:48px;text-align:right}
+.play{text-align:center}
+.speak{display:flex;justify-content:center;align-items:flex-end;gap:12px;margin:4px 0 14px}
+.hear{width:104px;height:104px;border-radius:50%;border:none;background:var(--hive);font-size:46px;cursor:pointer;box-shadow:0 6px 0 var(--hive-d)}
+.hear:active{transform:translateY(3px);box-shadow:0 3px 0 var(--hive-d)}
+.slow{border:2px solid var(--line);background:#fff;border-radius:14px;padding:8px 12px;font:inherit;font-weight:800;cursor:pointer;color:var(--ink)}
+.tag{display:inline-block;background:#fff1cc;color:#8a5a00;border-radius:10px;padding:4px 10px;font-weight:800;margin-bottom:10px}
+input.ans{width:100%;font:inherit;font-size:30px;font-weight:800;text-align:center;padding:14px;border-radius:16px;border:3px solid var(--line);outline:none;color:var(--ink)}
+input.ans:focus{border-color:var(--sky)}
+.blanks{font-size:22px;letter-spacing:6px;color:var(--muted);min-height:30px;margin-top:10px;font-weight:700}
+.msg{min-height:30px;font-weight:800;font-size:18px;margin-top:8px}
+.good{color:var(--ok)}.badc{color:var(--bad)}
+.reveal{font-size:36px;font-weight:800;letter-spacing:1px}
+.reveal u{color:var(--bad);text-decoration-thickness:3px}
+.yours{color:var(--muted);font-weight:700}
+.shake{animation:sh .35s}@keyframes sh{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section id="home">
+  <h1>🐝 Spelling Bee Practice</h1>
+  <p class="sub">Grades 3–4 · UIL A+ Spelling List 2026–27</p>
+  <div class="card">
+    <div><span class="big" id="nLearned">0</span> <b>of 600 words learned</b></div>
+    <div class="bar"><i id="hbar" style="width:0"></i></div>
+    <div class="counts"><span>✅ <b id="cL">0</b> learned</span><span>🔁 <b id="cP">0</b> to practice</span><span>🆕 <b id="cN">600</b> not tried</span></div>
+    <button class="btn" id="go">▶ Start 10 words</button>
+    <p class="note">Listen, then type the word. Words you spell right on the first try are learned and won't come back. Missed words return in later rounds until you get them.</p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <b>Progress file</b>
+    <p class="note" style="margin-top:6px" id="saveNote">Progress saves automatically in this browser. To keep it safe or move it to another device, save a progress file and open it again later.</p>
+    <div class="row">
+      <button class="btn sec" id="saveF">💾 Save file</button>
+      <button class="btn sec" id="loadF">📂 Open file</button>
+    </div>
+    <input type="file" id="fileIn" accept=".json,application/json" class="hide">
+    <p class="note" id="fileMsg"></p>
+    <details><summary>See my words</summary>
+      <p class="note">🔁 To practice</p><div class="wl bad" id="lP"></div>
+      <p class="note">✅ Learned</p><div class="wl good" id="lL"></div>
+      <button class="btn sec" id="reset" style="margin-top:12px">Start over (clear progress)</button>
+    </details>
+  </div>
+</section>
+
+<section id="game" class="hide">
+  <div class="top"><button class="x" id="quit" aria-label="Stop">✕</button><div class="bar"><i id="gbar" style="width:0"></i></div><div class="cnt" id="gcnt">1/10</div></div>
+  <div class="card play">
+    <div class="speak"><button class="hear" id="hear" aria-label="Hear the word">🔊</button><button class="slow" id="slow">🐢 Slower</button></div>
+    <div id="tag"></div>
+    <form id="f" autocomplete="off">
+      <input class="ans" id="ans" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="type the word" aria-label="Your spelling">
+      <div class="blanks" id="blanks"></div>
+      <div class="msg" id="msg"></div>
+      <button class="btn" id="act">Check</button>
+    </form>
+  </div>
+</section>
+
+<section id="done" class="hide">
+  <div class="card" style="text-align:center">
+    <div style="font-size:52px" id="dEmoji">🎉</div>
+    <h1 id="dTitle">Nice work!</h1>
+    <p class="sub" id="dLine"></p>
+    <div id="dMissW"><p class="note">Practice these — they'll come back:</p><div class="wl bad" id="dMiss" style="justify-content:center"></div></div>
+    <button class="btn" id="again">▶ Next 10 words</button>
+    <button class="btn sec" id="home2">Home</button>
+  </div>
+</section>
+</div>
+
+<script src="audio1.js"></script>
+<script src="audio2.js"></script>
+<script src="audio3.js"></script>
+<script>
+const RAW=[["ability"],["aboveground"],["absolute"],["absorb"],["adapt"],["address"],["adobe"],["adventure"],["affectionate"],["against"],["agitate"],["airplane"],["album"],["alligator"],["allspice"],["allusion"],["almost"],["aloha"],["alternate"],["amber"],["ancestor"],["annoy"],["appear"],["appetite"],["appoint"],["arrive"],["article"],["aspirin"],["assign"],["astonish"],["atmosphere"],["auction"],["autograph"],["average"],["babble"],["backpack"],["bait"],["balance"],["ballad"],["bark"],["barrel"],["bashful"],["beefy"],["beeper"],["beige"],["betray"],["billion"],["biology"],["bison"],["blame"],["blazing"],["blemish"],["blender"],["blockage"],["blush"],["boring"],["bossy"],["bracelet"],["bravery"],["bristle"],["broaden"],["bronco"],["brother"],["budget"],["built-in"],["business"],["cabinet"],["calm"],["capsule"],["capture"],["careful"],["carrier"],["category"],["cater","provide food"],["catwalk"],["ceiling","upper part of a room"],["celebrate"],["central"],["century"],["chapel"],["choice"],["chrome"],["circuit"],["citrus"],["climate"],["clumsy"],["comical"],["commotion"],["computer"],["conceal"],["concept"],["continue"],["contrary"],["copy"],["country"],["cranberry"],["create"],["creepy"],["crowd"],["curious"],["curve"],["custard"],["dandruff"],["deaden"],["decency"],["decimal"],["decorate"],["defeat"],["denim"],["density"],["dependable"],["describe"],["design"],["detour"],["develop"],["diamond"],["dignity"],["dinner"],["dinosaur"],["direction"],["dishonest"],["dissolve"],["donate"],["doodle"],["dose"],["dragonfly"],["dream"],["drench"],["dribble"],["drover"],["duet"],["dusk"],["earmuff"],["earthly"],["easiest"],["eclipse"],["economy"],["edible"],["eggplant"],["elective"],["eliminate"],["elsewhere"],["elude"],["embrace"],["enable"],["enchilada"],["endless"],["English"],["enough"],["entirely"],["error"],["escape"],["European"],["eventful"],["ever"],["exercise"],["expensive"],["eyedropper"],["eyelash"],["faithful"],["falsehood"],["famous"],["fanciness"],["fatal"],["fault"],["fearless"],["feast"],["feeble"],["fidget"],["fifth"],["fizzling"],["flatten"],["flaunt"],["flutist"],["foliage"],["foolproof"],["footprint"],["forestry"],["fortune"],["fountain"],["fowl"],["fragrant"],["framed"],["frequent","adj."],["frightful"],["fruitcake"],["frustrate"],["funnel"],["furniture"],["fussy"],["future"],["galley"],["garage"],["garlic"],["garment"],["gatekeeper"],["generous"],["gentle"],["gentry"],["germfree"],["gibberish"],["gigantic"],["ginger"],["glassblower"],["glimmer"],["glossy"],["goalpost"],["goatherd"],["goose"],["grader"],["grapple"],["gratefully"],["gravel"],["gravity"],["griddle"],["grieve"],["groovy"],["guardrail"],["guilt"],["gummy"],["hallway"],["hamper"],["hamster"],["handcuff"],["hare","rabbit"],["harmony"],["harp"],["hasty"],["hawk"],["headstrong"],["heavenly"],["height"],["heritage"],["hickory"],["highway"],["history"],["hive"],["hobby"],["homicide"],["honesty"],["hotel"],["hound"],["housemaid"],["hunch"],["hunting"],["hurdle"],["hurried"],["hypnotic"],["iceberg"],["image"],["impair"],["import"],["impress"],["inch"],["increase"],["indeed"],["index"],["infection"],["inform"],["inject"],["injure"],["inkling"],["input"],["inscribe"],["instead"],["instruct"],["interest"],["interpret"],["introduce"],["invite"],["inward"],["Irish"],["item"],["ivory"],["jabbed"],["jackboot"],["janitor"],["jay","bird"],["jazzy"],["jeer"],["journal"],["jumpsuit"],["kennel"],["keypad"],["keystroke"],["kindly"],["knapsack"],["knitwear"],["knob"],["kook"],["lace"],["lantern"],["lapdog"],["larva"],["laundry"],["lavatory"],["lavender"],["laziness"],["leaflet"],["leakage"],["ledge"],["length"],["lens"],["leotard"],["leverage"],["lifesaver"],["light-footed"],["likely"],["limited"],["linger"],["liquid"],["liven"],["lobby"],["lonesome"],["longhorn"],["loyal"],["luggage"],["luminous"],["lumpish"],["machine"],["maddening"],["magnet"],["magnify"],["majesty"],["manifest"],["manual"],["marmalade"],["massive"],["mature"],["measure"],["meddle"],["medical"],["medley"],["mentality"],["mercy"],["mermaid"],["metric"],["migration"],["mineral"],["minus"],["mission"],["misspell"],["misuse"],["modern"],["modest"],["muffler"],["multiply"],["municipal"],["mushroom"],["mystify"],["myth"],["nap"],["national"],["nature"],["navigate"],["neat"],["necessary"],["needless"],["nephew"],["neutral"],["nibble"],["nickname"],["ninth"],["noel"],["nonbiting"],["nonstick"],["normally"],["northward"],["nosy","","nosey"],["notation"],["notepad"],["nourish"],["novice"],["nudging"],["numb"],["nursemaid"],["nutmeg"],["nuzzle"],["obedient"],["oboe"],["obsess"],["obstruct"],["October"],["oddity"],["offend"],["oiliest"],["ointment"],["okra"],["onion"],["onlooker"],["onstage"],["oozy"],["opera"],["operation"],["opt"],["oral"],["orangeade"],["order"],["organized"],["ornament"],["otherwise"],["ouch"],["ourselves"],["outdated"],["outerwear"],["outward"],["overture"],["owlish"],["ozone"],["pageant"],["palace"],["pantry"],["parallel"],["parasite"],["parchment"],["partake"],["partnership"],["passport"],["pastry"],["peach"],["pedigree"],["perfume"],["perhaps"],["perplex"],["petrify"],["pheasant"],["photocopy"],["phrase"],["pitiful"],["pledge"],["portrait"],["position"],["positive"],["postage"],["prairie"],["precious"],["priest"],["primary"],["primitive"],["project"],["prowl"],["prune"],["purebred"],["quantity"],["quarter"],["queasy","","queazy"],["queen"],["quench"],["quibbling"],["quid"],["quill"],["quite"],["quiz"],["quota"],["radiant"],["radio"],["ragweed"],["rainbow"],["raspberry"],["razor"],["readable"],["reckless"],["recollect"],["recycle"],["regional"],["register"],["regularly"],["religion"],["remarkable"],["remedy"],["reminder"],["rescue"],["resident"],["respond"],["retired"],["retrieve"],["revenge"],["reward"],["rookie"],["rotate"],["rotten"],["rouge"],["ruddy"],["rush"],["ruthless"],["salmon"],["sane","mentally sound"],["sawdust"],["seamstress"],["security"],["sentence"],["service"],["shirttail"],["shortening"],["sincere"],["skeleton"],["sketch"],["snobbish"],["snoopy"],["snorkel"],["soothing"],["sourdough"],["spinach"],["sponge"],["sponsor"],["stardom"],["strawberry"],["struggle"],["suddenly"],["suggest"],["superb"],["surprising","adj."],["swoop"],["symbol"],["system"],["tantrum"],["tattered"],["technical"],["temperature"],["tempting"],["terrace"],["textbook"],["themselves"],["thermos"],["thrifty"],["thriller"],["throat"],["tickling"],["toaster"],["tornado"],["toughen"],["trampoline"],["transmit"],["tremor"],["triumph"],["trivial"],["trouble"],["tundra"],["twiddle"],["twig"],["twirl"],["twister"],["ultraviolet"],["umbrella"],["umpire"],["umpteen"],["unchain"],["underneath"],["uneasy"],["unfasten"],["unison"],["unlawful"],["unpack"],["unreal"],["unscramble"],["unusual"],["upturn"],["urgent"],["useless"],["usher"],["utterly"],["vacation"],["valentine"],["valley"],["vanilla"],["vapor","","vapour"],["various"],["veggie"],["vehicle"],["velvet"],["verb"],["vibrant"],["view"],["villain"],["violence"],["visor","","vizor"],["vocal"],["voltage"],["vulture"],["waist"],["wallet"],["warthog"],["wasp","insect"],["watermelon"],["westerly"],["windshield"],["wisdom"],["withdrawal"],["wreckage"],["wrongful"],["wry","ironic"],["xerography"],["xylem"],["yearly"],["yonder"],["youngster"],["yourself"],["youth"],["zippy"],["zookeeper"]];
+const AUDIO=window.AUDIO||[];
+const WORDS=RAW.map((r,i)=>({w:r[0],note:r[1]||"",alts:[r[0],...r.slice(2)],i}));
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+
+/* ---- progress: {learned:[words], practice:{word:misses}} ---- */
+const KEY="spellbee34_progress";
+let P={learned:[],practice:{}};
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.learned)P=s}catch(e){}
+function save(){P.updated=new Date().toISOString();try{localStorage.setItem(KEY,JSON.stringify(P))}catch(e){}}
+
+function renderHome(){
+  const L=new Set(P.learned),pr=Object.keys(P.practice).filter(w=>!L.has(w));
+  $("nLearned").textContent=L.size;$("hbar").style.width=(L.size/6)+"%";
+  $("cL").textContent=L.size;$("cP").textContent=pr.length;$("cN").textContent=600-L.size-pr.length;
+  $("lP").innerHTML=pr.map(w=>`<span>${esc(w)}</span>`).join("")||"<span>none yet</span>";
+  $("lL").innerHTML=[...L].sort().map(w=>`<span>${esc(w)}</span>`).join("")||"<span>none yet</span>";
+  $("go").textContent=L.size>=600?"🏆 All 600 learned!":"▶ Start 10 words";
+}
+
+/* ---- sound: built-in recordings, phone voice as backup ---- */
+let audioEl=null;
+function play(o,slow){
+  const src=AUDIO[o.i];
+  if(src){
+    try{if(audioEl)audioEl.pause();audioEl=new Audio(src);audioEl.playbackRate=slow?.7:1;audioEl.preservesPitch=true;
+      const p=audioEl.play();if(p&&p.catch)p.catch(()=>tts(o,slow));return}catch(e){}
+  }
+  tts(o,slow);
+}
+function tts(o,slow){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(o.w);u.lang="en-US";u.rate=slow?.5:.85;speechSynthesis.speak(u)}catch(e){}}
+
+/* ---- round ---- */
+let R=null;
+function startRound(){
+  const L=new Set(P.learned);
+  const pr=shuffle(WORDS.filter(o=>P.practice[o.w]!==undefined&&!L.has(o.w)));
+  const fresh=shuffle(WORDS.filter(o=>!L.has(o.w)&&P.practice[o.w]===undefined));
+  // up to 4 practice words mixed with new ones; fill with whatever is left
+  let pick=[...pr.slice(0,4),...fresh.slice(0,10)].slice(0,10);
+  if(pick.length<10)pick=[...pick,...pr.slice(4,4+10-pick.length)];
+  if(!pick.length){renderHome();return}
+  R={words:shuffle(pick),idx:0,missed:[],right:0};
+  show("game");nextWord();
+}
+function show(id){["home","game","done"].forEach(s=>$(s).classList.toggle("hide",s!==id));scrollTo(0,0)}
+let cur=null,tries=0,hinted=false,finished=false;
+function nextWord(){
+  if(R.idx>=R.words.length)return endRound();
+  cur=R.words[R.idx];tries=0;hinted=false;finished=false;
+  $("gbar").style.width=(R.idx/R.words.length*100)+"%";$("gcnt").textContent=`${R.idx+1}/${R.words.length}`;
+  $("tag").innerHTML=cur.note?`<span class="tag">${esc(cur.note)}</span>`:"";
+  const a=$("ans");a.value="";a.disabled=false;$("blanks").textContent="";$("msg").textContent="";$("msg").className="msg";
+  $("act").textContent="Check";
+  play(cur);setTimeout(()=>a.focus(),150);
+}
+function blanks(){$("blanks").textContent=[...cur.w].map((c,i)=>i===0||c==="-"?c:"_").join(" ")}
+function diff(c,t){return [...c].map((ch,i)=>t[i]===ch?esc(ch):`<u>${esc(ch)}</u>`).join("")}
+$("hear").onclick=()=>cur&&play(cur);
+$("slow").onclick=()=>cur&&play(cur,true);
+$("f").onsubmit=e=>{
+  e.preventDefault();
+  if(finished){R.idx++;nextWord();return}
+  const a=$("ans"),v=a.value.trim().replace(/[‐‑–—]/g,"-").replace(/\s+/g," ");
+  if(!v){a.focus();return}
+  const m=$("msg");
+  if(cur.alts.includes(v)){
+    finished=true;a.disabled=true;
+    if(tries===0){P.learned.push(cur.w);delete P.practice[cur.w];R.right++;m.textContent="🎉 Correct! Learned!"}
+    else{m.textContent="👍 Got it! We'll practice it again later."}
+    m.className="msg good";save();$("act").textContent="Next word ➜";$("act").focus();return;
+  }
+  tries++;
+  const caps=cur.alts.some(x=>x.toLowerCase()===v.toLowerCase());
+  if(tries===1){
+    P.practice[cur.w]=(P.practice[cur.w]||0)+1;R.missed.push(cur.w);save();
+    m.className="msg badc";m.textContent=caps?`Almost! This word starts with a capital letter.`:"Not quite — listen again and try once more.";
+    blanks();a.classList.add("shake");setTimeout(()=>a.classList.remove("shake"),400);a.select();play(cur,true);return;
+  }
+  finished=true;a.disabled=true;
+  m.className="msg";m.innerHTML=`<div class="reveal">${diff(cur.w,v)}</div><div class="yours">You wrote: ${esc(v)}</div>`;
+  $("act").textContent="Next word ➜";$("act").focus();
+};
+function endRound(){
+  const n=R.words.length,r=R.right;
+  $("dEmoji").textContent=r===n?"🏆":r>=n*.7?"🎉":"💪";
+  $("dTitle").textContent=r===n?"Perfect round!":r>=n*.7?"Nice work!":"Keep going!";
+  $("dLine").textContent=`${r} of ${n} right on the first try · ${P.learned.length} of 600 learned`;
+  const miss=[...new Set(R.missed)];
+  $("dMiss").innerHTML=miss.map(w=>`<span>${esc(w)}</span>`).join("");$("dMissW").classList.toggle("hide",!miss.length);
+  show("done");
+}
+$("go").onclick=startRound;$("again").onclick=startRound;
+$("quit").onclick=$("home2").onclick=()=>{if(audioEl)audioEl.pause();renderHome();show("home")};
+
+/* ---- progress file ---- */
+const inFrame=(()=>{try{return window.self!==window.top}catch(e){return true}})();
+if(inFrame)$("saveNote").textContent="Progress saves automatically on this device. (To save a progress file, open the downloaded copy of this game in a web browser.)";
+$("saveF").onclick=()=>{
+  const data=JSON.stringify({app:"spelling-bee-34",...P},null,1);
+  const name=`spelling-progress-${new Date().toISOString().slice(0,10)}.json`;
+  try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type:"application/json"}));a.download=name;document.body.appendChild(a);a.click();a.remove();
+    $("fileMsg").textContent=`Saved ${name} (${P.learned.length} learned, ${Object.keys(P.practice).length} to practice). Check your Downloads folder.`}
+  catch(e){$("fileMsg").textContent="Couldn't save a file here."}
+};
+$("loadF").onclick=()=>$("fileIn").click();
+$("fileIn").onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!Array.isArray(d.learned))throw 0;
+      const known=new Set(WORDS.map(o=>o.w));
+      P={learned:[...new Set(d.learned.filter(w=>known.has(w)))],practice:{}};
+      for(const[w,c]of Object.entries(d.practice||{}))if(known.has(w)&&!P.learned.includes(w))P.practice[w]=c;
+      save();renderHome();$("fileMsg").textContent=`Loaded ${f.name}: ${P.learned.length} learned, ${Object.keys(P.practice).length} to practice.`}
+    catch(err){$("fileMsg").textContent="That doesn't look like a progress file."}};
+  rd.readAsText(f);e.target.value="";
+};
+$("reset").onclick=function(){
+  if(this.dataset.sure){P={learned:[],practice:{}};save();renderHome();this.textContent="Start over (clear progress)";delete this.dataset.sure;$("fileMsg").textContent="Progress cleared.";return}
+  this.dataset.sure=1;this.textContent="Tap again to really clear everything";
+};
+renderHome();
+</script>
+</body>
+</html>
