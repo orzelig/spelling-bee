@@ -27,8 +27,8 @@ details{margin-top:16px}summary{font-weight:800;cursor:pointer}
 .wl.bad span{background:#ffe6ec}.wl.good span{background:#e3f6eb}
 .top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .x{border:2px solid var(--line);background:#fff;border-radius:12px;width:42px;height:42px;font-size:18px;cursor:pointer;color:var(--ink)}
-.top .bar{flex:1;margin:0}
-.cnt{font-weight:800;min-width:48px;text-align:right}
+.stop{border:2px solid var(--line);background:#fff;border-radius:12px;padding:9px 14px;font:inherit;font-weight:800;cursor:pointer;color:var(--bad)}
+.tally{flex:1;text-align:right;font-weight:800;color:var(--muted)}
 .play{text-align:center}
 .speak{display:flex;justify-content:center;align-items:flex-end;gap:12px;margin:4px 0 14px}
 .hear{width:104px;height:104px;border-radius:50%;border:none;background:var(--hive);font-size:46px;cursor:pointer;box-shadow:0 6px 0 var(--hive-d)}
@@ -57,8 +57,8 @@ input.ans:focus{border-color:var(--sky)}
     <div><span class="big" id="nLearned">0</span> <b>of 600 words learned</b></div>
     <div class="bar"><i id="hbar" style="width:0"></i></div>
     <div class="counts"><span>✅ <b id="cL">0</b> learned</span><span>🔁 <b id="cP">0</b> to practice</span><span>🆕 <b id="cN">600</b> not tried</span></div>
-    <button class="btn" id="go">▶ Start 10 words</button>
-    <p class="note">Listen, then type the word. Words you spell right on the first try are learned and won't come back. Missed words return in later rounds until you get them.</p>
+    <button class="btn" id="go">▶ Start practicing</button>
+    <p class="note">Listen, then type the word. Keep going as long as you like, and tap <b>Stop</b> when you're done. Words you spell right on the first try are learned and won't come back. Missed words come back a little later until you get them.</p>
   </div>
 
   <div class="card" style="margin-top:16px">
@@ -79,7 +79,7 @@ input.ans:focus{border-color:var(--sky)}
 </section>
 
 <section id="game" class="hide">
-  <div class="top"><button class="x" id="quit" aria-label="Stop">✕</button><div class="bar"><i id="gbar" style="width:0"></i></div><div class="cnt" id="gcnt">1/10</div></div>
+  <div class="top"><button class="stop" id="quit">■ Stop</button><div class="tally" id="gcnt">✅ 0 right · 0 words</div></div>
   <div class="card play">
     <div class="speak"><button class="hear" id="hear" aria-label="Hear the word">🔊</button><button class="slow" id="slow">🐢 Slower</button></div>
     <div id="tag"></div>
@@ -98,7 +98,7 @@ input.ans:focus{border-color:var(--sky)}
     <h1 id="dTitle">Nice work!</h1>
     <p class="sub" id="dLine"></p>
     <div id="dMissW"><p class="note">Practice these — they'll come back:</p><div class="wl bad" id="dMiss" style="justify-content:center"></div></div>
-    <button class="btn" id="again">▶ Next 10 words</button>
+    <button class="btn" id="again">▶ Keep practicing</button>
     <button class="btn sec" id="home2">Home</button>
   </div>
 </section>
@@ -127,7 +127,7 @@ function renderHome(){
   $("cL").textContent=L.size;$("cP").textContent=pr.length;$("cN").textContent=600-L.size-pr.length;
   $("lP").innerHTML=pr.map(w=>`<span>${esc(w)}</span>`).join("")||"<span>none yet</span>";
   $("lL").innerHTML=[...L].sort().map(w=>`<span>${esc(w)}</span>`).join("")||"<span>none yet</span>";
-  $("go").textContent=L.size>=600?"🏆 All 600 learned!":"▶ Start 10 words";
+  $("go").textContent=L.size>=600?"🏆 All 600 learned!":"▶ Start practicing";
 }
 
 /* ---- sound: built-in recordings, phone voice as backup ---- */
@@ -142,25 +142,33 @@ function play(o,slow){
 }
 function tts(o,slow){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(o.w);u.lang="en-US";u.rate=slow?.5:.85;speechSynthesis.speak(u)}catch(e){}}
 
-/* ---- round ---- */
+/* ---- endless session ---- */
 let R=null;
 function startRound(){
   const L=new Set(P.learned);
-  const pr=shuffle(WORDS.filter(o=>P.practice[o.w]!==undefined&&!L.has(o.w)));
   const fresh=shuffle(WORDS.filter(o=>!L.has(o.w)&&P.practice[o.w]===undefined));
-  // up to 4 practice words mixed with new ones; fill with whatever is left
-  let pick=[...pr.slice(0,4),...fresh.slice(0,10)].slice(0,10);
-  if(pick.length<10)pick=[...pick,...pr.slice(4,4+10-pick.length)];
-  if(!pick.length){renderHome();return}
-  R={words:shuffle(pick),idx:0,missed:[],right:0};
+  if(!fresh.length&&!WORDS.some(o=>!L.has(o.w))){renderHome();return}
+  R={fresh,n:0,missed:[],right:0,recent:[]};
   show("game");nextWord();
+}
+function pickNext(){
+  const L=new Set(P.learned);
+  // practice words: not learned, not shown in the last 5 words
+  const due=WORDS.filter(o=>P.practice[o.w]!==undefined&&!L.has(o.w)&&!R.recent.includes(o.w));
+  R.fresh=R.fresh.filter(o=>!L.has(o.w)&&P.practice[o.w]===undefined);
+  let o=null;
+  if(due.length&&(Math.random()<.3||!R.fresh.length))o=due[Math.random()*due.length|0];
+  else if(R.fresh.length)o=R.fresh.shift();
+  else{const any=WORDS.filter(x=>!L.has(x.w));if(any.length)o=any[Math.random()*any.length|0]}
+  if(o){R.recent.push(o.w);if(R.recent.length>5)R.recent.shift()}
+  return o;
 }
 function show(id){["home","game","done"].forEach(s=>$(s).classList.toggle("hide",s!==id));scrollTo(0,0)}
 let cur=null,tries=0,hinted=false,finished=false;
+function tally(){$("gcnt").textContent=`✅ ${R.right} right · ${R.n} word${R.n===1?"":"s"}`}
 function nextWord(){
-  if(R.idx>=R.words.length)return endRound();
-  cur=R.words[R.idx];tries=0;hinted=false;finished=false;
-  $("gbar").style.width=(R.idx/R.words.length*100)+"%";$("gcnt").textContent=`${R.idx+1}/${R.words.length}`;
+  cur=pickNext();if(!cur)return endRound();
+  tries=0;hinted=false;finished=false;tally();
   $("tag").innerHTML=cur.note?`<span class="tag">${esc(cur.note)}</span>`:"";
   const a=$("ans");a.value="";a.disabled=false;$("blanks").textContent="";$("msg").textContent="";$("msg").className="msg";
   $("act").textContent="Check";
@@ -172,13 +180,13 @@ $("hear").onclick=()=>cur&&play(cur);
 $("slow").onclick=()=>cur&&play(cur,true);
 $("f").onsubmit=e=>{
   e.preventDefault();
-  if(finished){R.idx++;nextWord();return}
+  if(finished){nextWord();return}
   const a=$("ans"),v=a.value.trim().replace(/[‐‑–—]/g,"-").replace(/\s+/g," ");
   if(!v){a.focus();return}
   const m=$("msg");
   if(cur.alts.includes(v)){
     finished=true;a.disabled=true;
-    if(tries===0){P.learned.push(cur.w);delete P.practice[cur.w];R.right++;m.textContent="🎉 Correct! Learned!"}
+    R.n++;if(tries===0){P.learned.push(cur.w);delete P.practice[cur.w];R.right++;m.textContent="🎉 Correct! Learned!"}
     else{m.textContent="👍 Got it! We'll practice it again later."}
     m.className="msg good";save();$("act").textContent="Next word ➜";$("act").focus();return;
   }
@@ -189,21 +197,24 @@ $("f").onsubmit=e=>{
     m.className="msg badc";m.textContent=caps?`Almost! This word starts with a capital letter.`:"Not quite — listen again and try once more.";
     blanks();a.classList.add("shake");setTimeout(()=>a.classList.remove("shake"),400);a.select();play(cur,true);return;
   }
-  finished=true;a.disabled=true;
+  finished=true;a.disabled=true;R.n++;
   m.className="msg";m.innerHTML=`<div class="reveal">${diff(cur.w,v)}</div><div class="yours">You wrote: ${esc(v)}</div>`;
   $("act").textContent="Next word ➜";$("act").focus();
 };
 function endRound(){
-  const n=R.words.length,r=R.right;
+  if(audioEl)audioEl.pause();
+  if(!R.n){renderHome();show("home");return}
+  const n=R.n,r=R.right;
   $("dEmoji").textContent=r===n?"🏆":r>=n*.7?"🎉":"💪";
   $("dTitle").textContent=r===n?"Perfect round!":r>=n*.7?"Nice work!":"Keep going!";
-  $("dLine").textContent=`${r} of ${n} right on the first try · ${P.learned.length} of 600 learned`;
+  $("dLine").textContent=`${r} of ${n} word${n===1?"":"s"} right on the first try · ${P.learned.length} of 600 learned`;
   const miss=[...new Set(R.missed)];
   $("dMiss").innerHTML=miss.map(w=>`<span>${esc(w)}</span>`).join("");$("dMissW").classList.toggle("hide",!miss.length);
   show("done");
 }
 $("go").onclick=startRound;$("again").onclick=startRound;
-$("quit").onclick=$("home2").onclick=()=>{if(audioEl)audioEl.pause();renderHome();show("home")};
+$("quit").onclick=endRound;
+$("home2").onclick=()=>{renderHome();show("home")};
 
 /* ---- progress file ---- */
 const inFrame=(()=>{try{return window.self!==window.top}catch(e){return true}})();
