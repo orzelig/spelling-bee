@@ -44,9 +44,19 @@ input.ans:focus{border-color:var(--sky)}
 .reveal u{color:var(--bad);text-decoration-thickness:3px}
 .yours{color:var(--muted);font-weight:700}
 .shake{animation:sh .35s}@keyframes sh{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
-.mic{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;border:2px solid var(--line);background:#fff;border-radius:16px;padding:12px;font:inherit;font-size:18px;font-weight:800;color:var(--ink);cursor:pointer}
-.mic.on{background:#ffe6ec;border-color:var(--bad);color:var(--bad)}
-.mic.on .dot{animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.3}}
+.modes{display:flex;gap:10px;margin-top:16px}
+.mode{flex:1;border:3px solid var(--line);background:#fff;border-radius:16px;padding:12px 6px;font:inherit;font-size:17px;font-weight:800;color:var(--ink);cursor:pointer}
+.mode[aria-pressed=true]{border-color:var(--sky);background:#eaf2ff}
+.tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;min-height:72px;padding:9px;border:3px solid var(--line);border-radius:16px}
+.tile{min-width:42px;height:52px;padding:0 6px;border:none;border-radius:10px;background:#fff1cc;box-shadow:0 3px 0 #e8cf8a;font:inherit;font-size:30px;font-weight:800;color:var(--ink);cursor:pointer}
+.tile.sel{background:var(--sky);color:#fff;box-shadow:0 3px 0 #1f5fcc;outline:3px solid #bcd4ff}
+.tiles.off .tile{cursor:default;background:#f2ede4;box-shadow:none}
+.tiles .ph{align-self:center;color:var(--muted);font-weight:700;font-size:18px}
+.listen{display:flex;align-items:center;justify-content:center;gap:7px;font-weight:800;font-size:15px;color:var(--bad);margin-top:8px;min-height:22px}
+.listen.wait{color:var(--muted)}.listen .dot{width:10px;height:10px;border-radius:50%;background:currentColor;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.tools{margin-top:10px}.tools .btn{margin-top:0}
+.btn:disabled{opacity:.45}
 .heard{min-height:22px;color:var(--muted);font-weight:700;font-size:15px;margin-top:8px}
 .heard b{color:var(--ink);letter-spacing:2px}.heard.warn{color:var(--bad)}
 .hide{display:none!important}
@@ -62,8 +72,12 @@ input.ans:focus{border-color:var(--sky)}
     <div><span class="big" id="nLearned">0</span> <b>of 600 words learned</b></div>
     <div class="bar"><i id="hbar" style="width:0"></i></div>
     <div class="counts"><span>✅ <b id="cL">0</b> learned</span><span>🔁 <b id="cP">0</b> to practice</span><span>🆕 <b id="cN">600</b> not tried</span></div>
+    <div class="modes hide" id="modes" role="group" aria-label="How to answer">
+      <button class="mode" id="mType" aria-pressed="true">⌨️ Type it</button>
+      <button class="mode" id="mSay" aria-pressed="false">🎤 Say the letters</button>
+    </div>
     <button class="btn" id="go">▶ Start practicing</button>
-    <p class="note">Listen, then type the word, or tap 🎤 and say the letters. Keep going as long as you like, and tap <b>Stop</b> when you're done. Words you spell right on the first try are learned and won't come back. Missed words come back a little later until you get them.</p>
+    <p class="note">Listen, then type the word or say its letters out loud. Keep going as long as you like, and tap <b>Stop</b> when you're done. Words you spell right on the first try are learned and won't come back. Missed words come back a little later until you get them.</p>
   </div>
 
   <div class="card" style="margin-top:16px">
@@ -84,14 +98,21 @@ input.ans:focus{border-color:var(--sky)}
 </section>
 
 <section id="game" class="hide">
-  <div class="top"><button class="stop" id="quit">■ Stop</button><div class="tally" id="gcnt">✅ 0 right · 0 words</div></div>
+  <div class="top"><button class="stop" id="quit">■ Stop</button><button class="stop hide" id="modeSw" style="color:var(--ink)"></button><div class="tally" id="gcnt">✅ 0 right · 0 words</div></div>
   <div class="card play">
     <div class="speak"><button class="hear" id="hear" aria-label="Hear the word">🔊</button><button class="slow" id="slow">🐢 Slower</button></div>
     <div id="tag"></div>
     <form id="f" autocomplete="off">
       <input class="ans" id="ans" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="type the word" aria-label="Your spelling">
-      <button type="button" class="mic hide" id="mic" aria-pressed="false">🎤 Say the letters</button>
-      <div class="heard" id="heard" aria-live="polite"></div>
+      <div id="voice" class="hide">
+        <div class="tiles" id="tiles" aria-label="Your spelling"></div>
+        <div class="listen" id="listen"></div>
+        <div class="heard" id="heard" aria-live="polite"></div>
+        <div class="row tools">
+          <button type="button" class="btn sec" id="vReset">↺ Reset</button>
+          <button type="button" class="btn sec hide" id="vDel">✕ Remove letter</button>
+        </div>
+      </div>
       <div class="blanks" id="blanks"></div>
       <div class="msg" id="msg"></div>
       <button class="btn" id="act">Check</button>
@@ -185,49 +206,104 @@ function parseSpeech(text){
   return {ops,bad};
 }
 const SR=()=>window.SpeechRecognition||window.webkitSpeechRecognition;
-const MIC_KEY="spellbee34_mic";
-let rec=null,micOn=false,paused=false,lastStart=0;
-try{micOn=localStorage.getItem(MIC_KEY)==="1"}catch(e){}
+const MODE_KEY="spellbee34_mode";
+let mode="type",rec=null,paused=false,lastStart=0,sel=-1;
+try{mode=localStorage.getItem(MODE_KEY)||(localStorage.getItem("spellbee34_mic")==="1"?"say":"type")}catch(e){}
+const voice=()=>mode==="say"&&!!SR();
+const inGame=()=>!$("game").classList.contains("hide");
 function heard(html,warn){const h=$("heard");h.innerHTML=html;h.classList.toggle("warn",!!warn)}
-function micUI(){const b=$("mic");b.classList.toggle("on",micOn);b.setAttribute("aria-pressed",micOn);
-  b.innerHTML=micOn?'<span class="dot">🔴</span> Listening… tap to stop':"🎤 Say the letters"}
+function setMode(m){
+  mode=m;try{localStorage.setItem(MODE_KEY,m)}catch(e){}
+  const v=voice(),a=$("ans");
+  $("mType").setAttribute("aria-pressed",!v);$("mSay").setAttribute("aria-pressed",v);
+  $("modeSw").textContent=v?"⌨️ Type instead":"🎤 Say instead";
+  a.classList.toggle("hide",v);$("voice").classList.toggle("hide",!v);
+  if(!finished)$("act").textContent=v?"✓ Submit":"Check";
+  if(v){sel=-1;renderTiles();listen()}
+  else{if(rec){const r=rec;rec=null;try{r.abort()}catch(e){}}if(inGame()&&!a.disabled)a.focus()}
+  micState();
+}
+// The answer lives in the (hidden) text box; in Say mode it's drawn as letter tiles.
+function renderTiles(){
+  const a=$("ans"),v=[...a.value],t=$("tiles");
+  if(sel>=v.length)sel=-1;
+  t.innerHTML=v.length?v.map((c,i)=>`<button type="button" class="tile${i===sel?" sel":""}" data-i="${i}" aria-label="Letter ${i+1}: ${esc(c)}">${c===" "?"␣":esc(c)}</button>`).join("")
+    :`<span class="ph">${a.disabled?"":"Say the first letter…"}</span>`;
+  t.classList.toggle("off",a.disabled);
+  $("vReset").disabled=a.disabled||!v.length;
+  $("vDel").classList.toggle("hide",sel<0||a.disabled);
+  if(sel>=0)heard(`Say a new letter for spot ${sel+1}, or tap <b>✕ Remove letter</b>.`);
+}
+function edit(op){ // a letter, "del" or "clear"
+  const a=$("ans");if(a.disabled)return;
+  const v=[...a.value];
+  if(op==="clear"){v.length=0;sel=-1}
+  else if(op==="del"){if(sel>=0){v.splice(sel,1);sel=-1}else v.pop()}
+  else if(sel>=0){v[sel]=op;sel=-1}
+  else v.push(op);
+  a.value=v.join("");renderTiles();
+}
+$("tiles").onclick=e=>{const b=e.target.closest(".tile");if(!b||$("ans").disabled)return;
+  const i=+b.dataset.i;sel=sel===i?-1:i;if(sel<0)heard("");renderTiles()};
+$("vReset").onclick=()=>{edit("clear");heard("Start again: say the first letter.")};
+$("vDel").onclick=()=>{edit("del");heard("")};
+// Keyboard works in Say mode too: letters, Backspace, ←/→ to pick a letter, Enter to submit.
+document.addEventListener("keydown",e=>{
+  if(!voice()||!inGame()||e.ctrlKey||e.metaKey||e.altKey)return;
+  const a=$("ans"),n=a.value.length,k=e.key;
+  if(k==="Enter"){e.preventDefault();$("f").requestSubmit();return}
+  if(a.disabled)return;
+  if(/^[a-zA-Z-]$/.test(k)){edit(k);heard("")}
+  else if(k==="Backspace"||k==="Delete")edit("del");
+  else if(k==="ArrowLeft"){sel=sel<0?n-1:Math.max(0,sel-1);renderTiles()}
+  else if(k==="ArrowRight"){sel=sel<0||sel>=n-1?-1:sel+1;if(sel<0)heard("");renderTiles()}
+  else if(k==="Escape"){sel=-1;heard("");renderTiles()}
+  else return;
+  e.preventDefault();
+});
+function micState(){
+  const l=$("listen");
+  if(!voice()||!inGame()||$("ans").disabled){l.innerHTML="";return}
+  l.classList.toggle("wait",!rec);
+  l.innerHTML=rec?'<span class="dot"></span> Listening… say the letters':"🔊 Listen to the word…";
+}
 function listen(){
-  if(!micOn||paused||rec||$("game").classList.contains("hide")||!SR())return;
+  if(!voice()||paused||rec||!inGame())return micState();
   const r=new(SR())();r.lang="en-US";r.continuous=true;r.interimResults=true;r.maxAlternatives=5;
   r.onresult=e=>{let interim="";
     for(let k=e.resultIndex;k<e.results.length;k++){if(e.results[k].isFinal)applySpeech(e.results[k]);else interim+=e.results[k][0].transcript}
     if(interim)heard("🎤 …"+esc(interim))};
   r.onerror=e=>{
-    if(e.error==="not-allowed"||e.error==="service-not-allowed"){setMic(false);heard("Allow the microphone to say the letters.",1)}
-    else if(e.error==="audio-capture"){setMic(false);heard("No microphone found.",1)}
-    else if(e.error==="network"){setMic(false);heard("Saying the letters needs the internet.",1)}};
-  r.onend=()=>{if(rec===r){rec=null;if(micOn&&!paused)setTimeout(listen,Date.now()-lastStart<1500?1500:100)}};
+    const why={"not-allowed":"To say the letters, allow the microphone (tap 🔒 next to the address).","service-not-allowed":"To say the letters, allow the microphone (tap 🔒 next to the address).",
+      "audio-capture":"No microphone found.","network":"Saying the letters needs the internet."}[e.error];
+    if(why){setMode("type");const m=$("msg");m.className="msg badc";m.textContent=why+" Typing for now."}};
+  r.onend=()=>{if(rec===r){rec=null;micState();if(voice()&&!paused)setTimeout(listen,Date.now()-lastStart<1500?1500:100)}};
   rec=r;lastStart=Date.now();try{r.start()}catch(e){rec=null}
+  micState();
 }
-function hush(){paused=true;if(rec){const r=rec;rec=null;try{r.abort()}catch(e){}}}
+function hush(){paused=true;if(rec){const r=rec;rec=null;try{r.abort()}catch(e){}}micState()}
 function resume(){paused=false;listen()}
-function setMic(on){micOn=on;try{localStorage.setItem(MIC_KEY,on?"1":"0")}catch(e){}micUI();
-  if(on){heard("Say one letter at a time. Say <b>oops</b> to erase, <b>check</b> when you're done.");listen()} // waits if the word is still playing
-  else if(rec){const r=rec;rec=null;try{r.abort()}catch(e){}}}
 function applySpeech(res){
   let best=null;
   for(let k=0;k<res.length;k++){const p=parseSpeech(res[k].transcript);if(!best||p.bad.length<best.bad.length||(p.bad.length===best.bad.length&&p.ops.length>best.ops.length))best=p}
   if(!best)return;
-  const a=$("ans"),added=[];
+  const a=$("ans"),added=[];let msg="";
   for(const op of best.ops){
     if(op==="check"||op==="next"){$("f").requestSubmit();continue}
     if(op==="repeat"){cur&&play(cur);continue}
     if(a.disabled)continue;
-    if(op==="del")a.value=a.value.slice(0,-1);
-    else if(op==="clear")a.value="";
-    else{if(a.value&&document.activeElement===a&&a.selectionStart===0&&a.selectionEnd===a.value.length)a.value=""; // replace a selected wrong try, like typing does
-      a.value+=op;added.push(op===" "?"␣":op)}
+    if(op.length===1&&sel>=0)msg=`Changed spot ${sel+1} to <b>${esc(op)}</b>.`;
+    edit(op);if(op.length===1)added.push(op===" "?"␣":op);
   }
-  if(best.bad.length&&!added.length)heard(`I heard “${esc(best.bad.join(" "))}”. Say the letters one at a time.`,1);
+  if(a.disabled)return;
+  if(msg)heard(msg);
+  else if(best.bad.length&&!added.length)heard(`I heard “${esc(best.bad.join(" "))}”. Say the letters one at a time.`,1);
   else if(added.length)heard("🎤 <b>"+esc(added.join(" "))+"</b>");
-  else if(!a.disabled)heard("");
 }
-if(SR()){$("mic").classList.remove("hide");micUI();$("mic").onclick=()=>setMic(!micOn)}
+if(SR()){$("modes").classList.remove("hide");$("modeSw").classList.remove("hide")}
+$("mType").onclick=()=>setMode("type");
+$("mSay").onclick=()=>setMode("say");
+$("modeSw").onclick=()=>setMode(voice()?"type":"say");
 
 /* ---- endless session ---- */
 let R=null;
@@ -258,18 +334,19 @@ function nextWord(){
   tries=0;hinted=false;finished=false;tally();
   $("tag").innerHTML=cur.note?`<span class="tag">${esc(cur.note)}</span>`:"";
   const a=$("ans");a.value="";a.disabled=false;$("blanks").textContent="";$("msg").textContent="";$("msg").className="msg";
-  $("act").textContent="Check";heard(micOn&&SR()?"🎤 Say the letters…":"");
-  play(cur);if(!(micOn&&SR()))setTimeout(()=>a.focus(),150); // no on-screen keyboard popping up while she's speaking
+  $("act").textContent=voice()?"✓ Submit":"Check";
+  sel=-1;heard(voice()?"Tap a letter to change it · say “oops” to erase":"");setMode(mode);
+  play(cur);if(!voice())setTimeout(()=>a.focus(),150); // no on-screen keyboard popping up while she's speaking
 }
 function blanks(){$("blanks").textContent=[...cur.w].map((c,i)=>i===0||c==="-"?c:"_").join(" ")}
 function diff(c,t){return [...c].map((ch,i)=>t[i]===ch?esc(ch):`<u>${esc(ch)}</u>`).join("")}
 $("hear").onclick=()=>cur&&play(cur);
 $("slow").onclick=()=>cur&&play(cur,true);
-$("f").onsubmit=e=>{
-  e.preventDefault();
+$("f").onsubmit=e=>{e.preventDefault();check();if(voice()&&cur){renderTiles();micState()}};
+function check(){
   if(finished){nextWord();return}
   const a=$("ans"),v=a.value.trim().replace(/[‐‑–—]/g,"-").replace(/\s+/g," ");
-  if(!v){a.focus();return}
+  if(!v){if(voice())heard("Say the letters first.",1);else a.focus();return}
   const m=$("msg");
   if(cur.alts.includes(v)){
     finished=true;a.disabled=true;
@@ -282,7 +359,9 @@ $("f").onsubmit=e=>{
   if(tries===1){
     P.practice[cur.w]=(P.practice[cur.w]||0)+1;R.missed.push(cur.w);save();
     m.className="msg badc";m.textContent=caps?`Almost! This word starts with a capital letter.`:"Not quite — listen again and try once more.";
-    blanks();a.classList.add("shake");setTimeout(()=>a.classList.remove("shake"),400);a.select();play(cur,true);return;
+    blanks();const box=voice()?$("tiles"):a;box.classList.add("shake");setTimeout(()=>box.classList.remove("shake"),400);
+    if(voice())heard("Tap a letter to change it, or ↺ Reset to start over.");else a.select();
+    play(cur,true);return;
   }
   finished=true;a.disabled=true;R.n++;
   m.className="msg";m.innerHTML=`<div class="reveal">${diff(cur.w,v)}</div><div class="yours">You wrote: ${esc(v)}</div>`;
@@ -328,7 +407,7 @@ $("reset").onclick=function(){
   if(this.dataset.sure){P={learned:[],practice:{}};save();renderHome();this.textContent="Start over (clear progress)";delete this.dataset.sure;$("fileMsg").textContent="Progress cleared.";return}
   this.dataset.sure=1;this.textContent="Tap again to really clear everything";
 };
-renderHome();
+renderHome();setMode(mode);
 </script>
 </body>
 </html>
