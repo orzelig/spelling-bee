@@ -207,7 +207,7 @@ function parseSpeech(text){
 }
 const SR=()=>window.SpeechRecognition||window.webkitSpeechRecognition;
 const MODE_KEY="spellbee34_mode";
-let mode="type",rec=null,paused=false,lastStart=0,sel=-1;
+let mode="type",rec=null,paused=false,lastStart=0,sel=-1,local=false,localBroken=false,netFails=0,localPrep=null;
 try{mode=localStorage.getItem(MODE_KEY)||(localStorage.getItem("spellbee34_mic")==="1"?"say":"type")}catch(e){}
 const voice=()=>mode==="say"&&!!SR();
 const inGame=()=>!$("game").classList.contains("hide");
@@ -261,6 +261,18 @@ document.addEventListener("keydown",e=>{
   else return;
   e.preventDefault();
 });
+// Chrome can also recognise speech on the device itself (no Google server, works offline).
+// The model is a one-time download, started when she picks Say mode.
+function prepLocal(){
+  const C=SR(),opt={langs:["en-US"],processLocally:true};
+  if(!C||!C.available||localBroken)return Promise.resolve(false);
+  if(!localPrep)localPrep=(async()=>{try{
+      const st=await C.available(opt);
+      if(st==="available")return true;
+      if((st==="downloadable"||st==="downloading")&&C.install)return !!(await C.install(opt));
+    }catch(e){}return false})().then(ok=>{if(!ok)localPrep=null;return ok});
+  return localPrep;
+}
 function micState(){
   const l=$("listen");
   if(!voice()||!inGame()||$("ans").disabled){l.innerHTML="";return}
@@ -270,17 +282,28 @@ function micState(){
 function listen(){
   if(!voice()||paused||rec||!inGame())return micState();
   const r=new(SR())();r.lang="en-US";r.continuous=true;r.interimResults=true;r.maxAlternatives=5;
-  r.onresult=e=>{let interim="";
+  const usedLocal=local;
+  if(usedLocal){try{r.processLocally=true}catch(e){}
+    try{if(window.SpeechRecognitionPhrase)r.phrases=Object.keys(NAMES).map(c=>new SpeechRecognitionPhrase(c,3))}catch(e){}}
+  r.onresult=e=>{netFails=0;let interim="";
     for(let k=e.resultIndex;k<e.results.length;k++){if(e.results[k].isFinal)applySpeech(e.results[k]);else interim+=e.results[k][0].transcript}
     if(interim)heard("🎤 …"+esc(interim))};
   r.onerror=e=>{
-    const why={"not-allowed":"To say the letters, allow the microphone (tap 🔒 next to the address).","service-not-allowed":"To say the letters, allow the microphone (tap 🔒 next to the address).",
-      "audio-capture":"No microphone found.","network":"Saying the letters needs the internet."}[e.error];
-    if(why){setMode("type");const m=$("msg");m.className="msg badc";m.textContent=why+" Typing for now."}};
+    if(e.error==="network"||(usedLocal&&/language|service/.test(e.error))){
+      // Google's speech service didn't answer: switch to on-device speech, or retry a couple of times.
+      if(usedLocal){local=false;localBroken=true;return}
+      if(local)return; // on-device speech got ready meanwhile; the restart will use it
+      if(++netFails<=2){heard("Reconnecting the microphone…");prepLocal().then(ok=>{if(ok){local=true;heard("Using this computer's own speech recognition.")}});return}
+      else{prepLocal().then(ok=>{if(ok){local=true;netFails=0;heard("Using this computer's own speech recognition.");listen()}else giveUp("Speech recognition isn't working in this browser right now.")});return}
+    }
+    const why={"not-allowed":"To say the letters, allow the microphone (tap 🔒 next to the address).","service-not-allowed":"This browser doesn't allow speech recognition here.",
+      "audio-capture":"No microphone found.","network":"Chrome's speech service isn't answering."}[e.error];
+    if(why)giveUp(why)};
   r.onend=()=>{if(rec===r){rec=null;micState();if(voice()&&!paused)setTimeout(listen,Date.now()-lastStart<1500?1500:100)}};
   rec=r;lastStart=Date.now();try{r.start()}catch(e){rec=null}
   micState();
 }
+function giveUp(why){if(!voice())return;setMode("type");const m=$("msg");m.className="msg badc";m.textContent=why+" Typing for now."}
 function hush(){paused=true;if(rec){const r=rec;rec=null;try{r.abort()}catch(e){}}micState()}
 function resume(){paused=false;listen()}
 function applySpeech(res){
@@ -302,8 +325,8 @@ function applySpeech(res){
 }
 if(SR()){$("modes").classList.remove("hide");$("modeSw").classList.remove("hide")}
 $("mType").onclick=()=>setMode("type");
-$("mSay").onclick=()=>setMode("say");
-$("modeSw").onclick=()=>setMode(voice()?"type":"say");
+$("mSay").onclick=()=>{setMode("say");prepLocal()};
+$("modeSw").onclick=()=>{setMode(voice()?"type":"say");if(voice())prepLocal()};
 
 /* ---- endless session ---- */
 let R=null;
