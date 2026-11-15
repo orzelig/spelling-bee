@@ -44,6 +44,11 @@ input.ans:focus{border-color:var(--sky)}
 .reveal u{color:var(--bad);text-decoration-thickness:3px}
 .yours{color:var(--muted);font-weight:700}
 .shake{animation:sh .35s}@keyframes sh{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.mic{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;border:2px solid var(--line);background:#fff;border-radius:16px;padding:12px;font:inherit;font-size:18px;font-weight:800;color:var(--ink);cursor:pointer}
+.mic.on{background:#ffe6ec;border-color:var(--bad);color:var(--bad)}
+.mic.on .dot{animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.3}}
+.heard{min-height:22px;color:var(--muted);font-weight:700;font-size:15px;margin-top:8px}
+.heard b{color:var(--ink);letter-spacing:2px}.heard.warn{color:var(--bad)}
 .hide{display:none!important}
 </style>
 </head>
@@ -58,7 +63,7 @@ input.ans:focus{border-color:var(--sky)}
     <div class="bar"><i id="hbar" style="width:0"></i></div>
     <div class="counts"><span>✅ <b id="cL">0</b> learned</span><span>🔁 <b id="cP">0</b> to practice</span><span>🆕 <b id="cN">600</b> not tried</span></div>
     <button class="btn" id="go">▶ Start practicing</button>
-    <p class="note">Listen, then type the word. Keep going as long as you like, and tap <b>Stop</b> when you're done. Words you spell right on the first try are learned and won't come back. Missed words come back a little later until you get them.</p>
+    <p class="note">Listen, then type the word, or tap 🎤 and say the letters. Keep going as long as you like, and tap <b>Stop</b> when you're done. Words you spell right on the first try are learned and won't come back. Missed words come back a little later until you get them.</p>
   </div>
 
   <div class="card" style="margin-top:16px">
@@ -85,6 +90,8 @@ input.ans:focus{border-color:var(--sky)}
     <div id="tag"></div>
     <form id="f" autocomplete="off">
       <input class="ans" id="ans" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="type the word" aria-label="Your spelling">
+      <button type="button" class="mic hide" id="mic" aria-pressed="false">🎤 Say the letters</button>
+      <div class="heard" id="heard" aria-live="polite"></div>
       <div class="blanks" id="blanks"></div>
       <div class="msg" id="msg"></div>
       <button class="btn" id="act">Check</button>
@@ -131,16 +138,96 @@ function renderHome(){
 }
 
 /* ---- sound: built-in recordings, phone voice as backup ---- */
-let audioEl=null;
+let audioEl=null,playId=0;
 function play(o,slow){
+  // The microphone pauses while the word is read aloud, so it doesn't hear the game.
+  const id=++playId,done=()=>{if(id===playId)setTimeout(resume,250)};
+  hush();setTimeout(done,8000);
   const src=AUDIO[o.i];
   if(src){
     try{if(audioEl)audioEl.pause();audioEl=new Audio(src);audioEl.playbackRate=slow?.7:1;audioEl.preservesPitch=true;
-      const p=audioEl.play();if(p&&p.catch)p.catch(()=>tts(o,slow));return}catch(e){}
+      audioEl.onended=audioEl.onerror=done;
+      const p=audioEl.play();if(p&&p.catch)p.catch(()=>tts(o,slow,done));return}catch(e){}
   }
-  tts(o,slow);
+  tts(o,slow,done);
 }
-function tts(o,slow){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(o.w);u.lang="en-US";u.rate=slow?.5:.85;speechSynthesis.speak(u)}catch(e){}}
+function tts(o,slow,done){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(o.w);u.lang="en-US";u.rate=slow?.5:.85;if(done)u.onend=u.onerror=done;speechSynthesis.speak(u)}catch(e){done&&done()}}
+
+/* ---- say the letters: the browser's speech recognition turns spoken letter names into letters ---- */
+// Ways the recognizer writes each spoken letter name.
+const NAMES={a:"a ay eh",b:"b be bee bea",c:"c see sea cee si",d:"d dee de",e:"e ee",f:"f ef eff if",g:"g gee jee ji",
+  h:"h aitch haitch age each",i:"i eye aye",j:"j jay jae",k:"k kay cay kaye ok okay",l:"l el ell elle",m:"m em am",n:"n en an and in",
+  o:"o oh owe 0 zero",p:"p pee pea pe",q:"q cue queue kew",r:"r are ar arr",s:"s es ess yes",t:"t tee tea ti",u:"u you yu ewe",
+  v:"v vee ve",w:"w dub dubya",x:"x ex ecks eggs",y:"y why wye",z:"z zee zed"};
+const SAID={};for(const[c,list]of Object.entries(NAMES))for(const w of list.split(" "))SAID[w]=c;
+const CMD={oops:"del",delete:"del",back:"del",backspace:"del",undo:"del",remove:"del",clear:"clear",erase:"clear",restart:"clear",
+  check:"check",done:"check",enter:"check",finished:"check",submit:"check",ready:"check",next:"next",repeat:"repeat",
+  space:" ",dash:"-",hyphen:"-",minus:"-"};
+const FILLER=new Set(["letter","um","uh","umm","then","the","and then"]);
+// "B E E F Y oops" -> {ops:["b","e","e","f","y","del"], bad:[]}. Whole words ("beefy") go to bad: she has to spell them.
+function parseSpeech(text){
+  const toks=String(text).replace(/[.,!?;:"]/g," ").trim().split(/\s+/).filter(Boolean);
+  const ops=[],bad=[];let cap=false;
+  const add=c=>{ops.push(cap?c.toUpperCase():c);cap=false};
+  for(let k=0;k<toks.length;k++){
+    const raw=toks[k],w=raw.toLowerCase(),nx=(toks[k+1]||"").toLowerCase();
+    if(w==="double"&&/^(u|you|yu)$/.test(nx)){add("w");k++;continue}
+    if(w==="start"&&nx==="over"){ops.push("clear");k++;continue}
+    if(w==="capital"||w==="uppercase"||w==="big"){cap=true;continue}
+    if(SAID[w]!==undefined){add(SAID[w]);continue}
+    if(CMD[w]){ops.push(CMD[w]);continue}
+    if(FILLER.has(w))continue;
+    if(/^[A-Z]{2,}$/.test(raw)){[...w].forEach(add);continue}            // "BEEFY" written as capitals = letters run together
+    const parts=w.split("-");                                            // "b-e-e"
+    if(parts.length>1&&parts.every(p=>SAID[p]!==undefined)){parts.forEach(p=>add(SAID[p]));continue}
+    bad.push(raw);
+  }
+  return {ops,bad};
+}
+const SR=()=>window.SpeechRecognition||window.webkitSpeechRecognition;
+const MIC_KEY="spellbee34_mic";
+let rec=null,micOn=false,paused=false,lastStart=0;
+try{micOn=localStorage.getItem(MIC_KEY)==="1"}catch(e){}
+function heard(html,warn){const h=$("heard");h.innerHTML=html;h.classList.toggle("warn",!!warn)}
+function micUI(){const b=$("mic");b.classList.toggle("on",micOn);b.setAttribute("aria-pressed",micOn);
+  b.innerHTML=micOn?'<span class="dot">🔴</span> Listening… tap to stop':"🎤 Say the letters"}
+function listen(){
+  if(!micOn||paused||rec||$("game").classList.contains("hide")||!SR())return;
+  const r=new(SR())();r.lang="en-US";r.continuous=true;r.interimResults=true;r.maxAlternatives=5;
+  r.onresult=e=>{let interim="";
+    for(let k=e.resultIndex;k<e.results.length;k++){if(e.results[k].isFinal)applySpeech(e.results[k]);else interim+=e.results[k][0].transcript}
+    if(interim)heard("🎤 …"+esc(interim))};
+  r.onerror=e=>{
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"){setMic(false);heard("Allow the microphone to say the letters.",1)}
+    else if(e.error==="audio-capture"){setMic(false);heard("No microphone found.",1)}
+    else if(e.error==="network"){setMic(false);heard("Saying the letters needs the internet.",1)}};
+  r.onend=()=>{if(rec===r){rec=null;if(micOn&&!paused)setTimeout(listen,Date.now()-lastStart<1500?1500:100)}};
+  rec=r;lastStart=Date.now();try{r.start()}catch(e){rec=null}
+}
+function hush(){paused=true;if(rec){const r=rec;rec=null;try{r.abort()}catch(e){}}}
+function resume(){paused=false;listen()}
+function setMic(on){micOn=on;try{localStorage.setItem(MIC_KEY,on?"1":"0")}catch(e){}micUI();
+  if(on){heard("Say one letter at a time. Say <b>oops</b> to erase, <b>check</b> when you're done.");listen()} // waits if the word is still playing
+  else if(rec){const r=rec;rec=null;try{r.abort()}catch(e){}}}
+function applySpeech(res){
+  let best=null;
+  for(let k=0;k<res.length;k++){const p=parseSpeech(res[k].transcript);if(!best||p.bad.length<best.bad.length||(p.bad.length===best.bad.length&&p.ops.length>best.ops.length))best=p}
+  if(!best)return;
+  const a=$("ans"),added=[];
+  for(const op of best.ops){
+    if(op==="check"||op==="next"){$("f").requestSubmit();continue}
+    if(op==="repeat"){cur&&play(cur);continue}
+    if(a.disabled)continue;
+    if(op==="del")a.value=a.value.slice(0,-1);
+    else if(op==="clear")a.value="";
+    else{if(a.value&&document.activeElement===a&&a.selectionStart===0&&a.selectionEnd===a.value.length)a.value=""; // replace a selected wrong try, like typing does
+      a.value+=op;added.push(op===" "?"␣":op)}
+  }
+  if(best.bad.length&&!added.length)heard(`I heard “${esc(best.bad.join(" "))}”. Say the letters one at a time.`,1);
+  else if(added.length)heard("🎤 <b>"+esc(added.join(" "))+"</b>");
+  else if(!a.disabled)heard("");
+}
+if(SR()){$("mic").classList.remove("hide");micUI();$("mic").onclick=()=>setMic(!micOn)}
 
 /* ---- endless session ---- */
 let R=null;
@@ -171,8 +258,8 @@ function nextWord(){
   tries=0;hinted=false;finished=false;tally();
   $("tag").innerHTML=cur.note?`<span class="tag">${esc(cur.note)}</span>`:"";
   const a=$("ans");a.value="";a.disabled=false;$("blanks").textContent="";$("msg").textContent="";$("msg").className="msg";
-  $("act").textContent="Check";
-  play(cur);setTimeout(()=>a.focus(),150);
+  $("act").textContent="Check";heard(micOn&&SR()?"🎤 Say the letters…":"");
+  play(cur);if(!(micOn&&SR()))setTimeout(()=>a.focus(),150); // no on-screen keyboard popping up while she's speaking
 }
 function blanks(){$("blanks").textContent=[...cur.w].map((c,i)=>i===0||c==="-"?c:"_").join(" ")}
 function diff(c,t){return [...c].map((ch,i)=>t[i]===ch?esc(ch):`<u>${esc(ch)}</u>`).join("")}
@@ -202,7 +289,7 @@ $("f").onsubmit=e=>{
   $("act").textContent="Next word ➜";$("act").focus();
 };
 function endRound(){
-  if(audioEl)audioEl.pause();
+  if(audioEl)audioEl.pause();hush();
   if(!R.n){renderHome();show("home");return}
   const n=R.n,r=R.right;
   $("dEmoji").textContent=r===n?"🏆":r>=n*.7?"🎉":"💪";
