@@ -350,9 +350,10 @@ function pickNext(){
   return o;
 }
 function show(id){["home","game","done"].forEach(s=>$(s).classList.toggle("hide",s!==id));scrollTo(0,0)}
-let cur=null,tries=0,hinted=false,finished=false;
+let cur=null,tries=0,hinted=false,finished=false,advT=null;
 function tally(){$("gcnt").textContent=`✅ ${R.right} right · ${R.n} word${R.n===1?"":"s"}`}
 function nextWord(){
+  clearTimeout(advT);
   cur=pickNext();if(!cur)return endRound();
   tries=0;hinted=false;finished=false;tally();
   $("tag").innerHTML=cur.note?`<span class="tag">${esc(cur.note)}</span>`:"";
@@ -375,7 +376,10 @@ function check(){
     finished=true;a.disabled=true;
     R.n++;if(tries===0){P.learned.push(cur.w);delete P.practice[cur.w];R.right++;m.textContent="🎉 Correct! Learned!"}
     else{m.textContent="👍 Got it! We'll practice it again later."}
-    m.className="msg good";save();$("act").textContent="Next word ➜";$("act").focus();return;
+    m.className="msg good";save();$("act").textContent="Next word ➜";$("act").focus();
+    // Right answer: move on by itself after a short beat (the button skips the wait).
+    const w=cur;clearTimeout(advT);advT=setTimeout(()=>{if(cur===w&&finished&&!$("game").classList.contains("hide"))nextWord()},1500);
+    return;
   }
   tries++;
   const caps=cur.alts.some(x=>x.toLowerCase()===v.toLowerCase());
@@ -391,6 +395,7 @@ function check(){
   $("act").textContent="Next word ➜";$("act").focus();
 };
 function endRound(){
+  clearTimeout(advT);
   if(audioEl)audioEl.pause();hush();
   if(!R.n){renderHome();show("home");return}
   const n=R.n,r=R.right;
